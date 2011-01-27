@@ -57,25 +57,9 @@ void rtsp_options(CURL *curl, const char *uri) {
 
 
 // send RTSP DESCRIBE request and write sdp response to a file
-void rtsp_describe(CURL *curl, const char *uri) {
+void rtsp_describe(CURL *curl, const char *uri, const char *sdp_filename) {
     CURLcode res = CURLE_OK;
     printf("\nRTSP: DESCRIBE %s\n", uri);
-    bool sdp_filename_new = false;
-    char *sdp_filename = NULL;
-    const char *s = strrchr(uri, '/');
-    if (s != NULL) {
-        s++;
-        if (s[0] != '\0') {
-            sdp_filename = new char[strlen(s) + 8];
-            if (sdp_filename != NULL) {
-                sprintf(sdp_filename, "%s.sdp", s);
-                sdp_filename_new = true;
-            }
-        }
-    }
-    if (sdp_filename == NULL) {
-        sdp_filename = "video.sdp";
-    }
     FILE *sdp_fp = fopen(sdp_filename, "wt");
     if (sdp_fp == NULL) {
         fprintf(stderr, "Could not open '%s' for writing\n", sdp_filename);
@@ -87,9 +71,8 @@ void rtsp_describe(CURL *curl, const char *uri) {
     my_curl_easy_setopt(curl, CURLOPT_RTSP_REQUEST, CURL_RTSPREQ_DESCRIBE);
     my_curl_easy_perform(curl);
     my_curl_easy_setopt(curl, CURLOPT_WRITEDATA, stdout);
-    fclose(sdp_fp);
-    if (sdp_filename_new) {
-        delete []sdp_filename;
+    if (sdp_fp != stdout) {
+        fclose(sdp_fp);
     }
 }
 
@@ -126,6 +109,35 @@ void rtsp_teardown(CURL *curl, const char *uri) {
 }
 
 
+// convert url into an sdp filename
+void get_sdp_filename(const char *url, char *sdp_filename) {
+    strcpy(sdp_filename, "video.sdp");
+    const char *s = strrchr(url, '/');
+    if (s != NULL) {
+        s++;
+        if (s[0] != '\0') {
+            sprintf(sdp_filename, "%s.sdp", s);
+        }
+    }
+}
+
+
+// scan sdp file for media control attribute
+void get_media_control_attribute(const char *sdp_filename, char *control) {
+    control[0] = '\0';
+    int max_len = 256;
+    char *s = new char[max_len];
+    FILE *sdp_fp = fopen(sdp_filename, "rt");
+    if (sdp_fp != NULL) {
+        while(fgets(s, max_len - 2, sdp_fp) != NULL) {
+            sscanf(s, " a = control: %s", control);
+        }
+        fclose(sdp_fp);
+    }
+    delete []s;
+}
+
+
 // main app
 int main(int argc, char **argv) {
     const char *transport = "RTP/AVP;unicast;client_port=1234-1235";
@@ -157,6 +169,9 @@ int main(int argc, char **argv) {
     } else {
         const char *url = argv[1];
         char *uri = new char[strlen(url) + 32];
+        char *sdp_filename = new char[strlen(url) + 32];
+        char *control = new char[strlen(url) + 32];
+        get_sdp_filename(url, sdp_filename);
         if (argc == 3) {
             transport = argv[2];
         }
@@ -180,11 +195,14 @@ int main(int argc, char **argv) {
                 sprintf(uri, "%s", url);
                 rtsp_options(curl, uri);
 
-                // open sdp file and request session description
-                rtsp_describe(curl, uri);
+                // request session description and write response to sdp file
+                rtsp_describe(curl, uri, sdp_filename);
+
+                // get media control attribute from sdp file
+                get_media_control_attribute(sdp_filename, control);
 
                 // setup media stream
-                sprintf(uri, "%s/video", url);
+                sprintf(uri, "%s/%s", url, control);
                 rtsp_setup(curl, uri, transport);
 
                 // start playing media stream
@@ -207,6 +225,9 @@ int main(int argc, char **argv) {
         } else {
             fprintf(stderr, "curl_global_init(%s) failed\n", "CURL_GLOBAL_ALL", res);
         }
+        delete []control;
+        delete []sdp_filename;
+        delete []uri;
     }
 
     return rc;
