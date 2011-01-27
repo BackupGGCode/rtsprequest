@@ -129,7 +129,7 @@ void get_media_control_attribute(const char *sdp_filename, char *control) {
     char *s = new char[max_len];
     FILE *sdp_fp = fopen(sdp_filename, "rt");
     if (sdp_fp != NULL) {
-        while(fgets(s, max_len - 2, sdp_fp) != NULL) {
+        while (fgets(s, max_len - 2, sdp_fp) != NULL) {
             sscanf(s, " a = control: %s", control);
         }
         fclose(sdp_fp);
