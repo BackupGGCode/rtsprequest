@@ -30,6 +30,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <conio.h>  // _getch()
 
 #include <curl/curl.h>
@@ -140,7 +141,8 @@ void get_media_control_attribute(const char *sdp_filename, char *control) {
 
 // main app
 int main(int argc, char **argv) {
-    const char *transport = "RTP/AVP;unicast;client_port=1234-1235";
+    const char *transport = "RTP/AVP;unicast;client_port=1234-1235";  // UDP		
+//    const char *transport = "RTP/AVP/TCP;unicast;client_port=1234-1235";  // TCP
     const char *range = "0.000-";
     int rc = EXIT_SUCCESS;
 
