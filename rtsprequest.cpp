@@ -31,7 +31,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <conio.h>  // _getch()
+
+#if defined (WIN32)
+#  include <conio.h>  // _getch()
+#else
+#  include <termios.h>
+#  include <unistd.h>
+
+  int _getch(void) {
+    struct termios oldt, newt;
+    tcgetattr( STDIN_FILENO, &oldt );
+    newt = oldt;
+    newt.c_lflag &= ~( ICANON | ECHO );
+    tcsetattr( STDIN_FILENO, TCSANOW, &newt );
+    int ch = getchar();
+    tcsetattr( STDIN_FILENO, TCSANOW, &oldt );
+    return ch;
+  }
+#endif
 
 #include <curl/curl.h>
 
@@ -140,7 +157,7 @@ void get_media_control_attribute(const char *sdp_filename, char *control) {
 
 
 // main app
-int main(int argc, char **argv) {
+int main(int argc, char * const argv[]) {
     const char *transport = "RTP/AVP;unicast;client_port=1234-1235";  // UDP		
 //    const char *transport = "RTP/AVP/TCP;unicast;client_port=1234-1235";  // TCP
     const char *range = "0.000-";
