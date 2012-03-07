@@ -52,7 +52,9 @@
 
 #include <curl/curl.h>
 
-#define VERSION_STR  "V1.0"
+#define VERSION_STR         "V1.1"
+#define DEFAULT_TRANSPORT   "RTP/AVP;unicast;client_port=1234-1235"
+#define DEFAULT_RANGE       "0.000-"
 
 // error handling macros
 #define my_curl_easy_setopt(A, B, C) \
@@ -112,7 +114,9 @@ void rtsp_play(CURL *curl, const char *uri, const char *range) {
     CURLcode res = CURLE_OK;
     printf("\nRTSP: PLAY %s\n", uri);
     my_curl_easy_setopt(curl, CURLOPT_RTSP_STREAM_URI, uri);
-    my_curl_easy_setopt(curl, CURLOPT_RANGE, range);
+    if (range != NULL) {
+        my_curl_easy_setopt(curl, CURLOPT_RANGE, range);
+    }
     my_curl_easy_setopt(curl, CURLOPT_RTSP_REQUEST, CURL_RTSPREQ_PLAY);
     my_curl_easy_perform(curl);
 }
@@ -155,12 +159,21 @@ void get_media_control_attribute(const char *sdp_filename, char *control) {
     delete []s;
 }
 
+void print_usage(const char *basename) {
+    printf("Usage:   %s url [-t transport] [-r range] [-norange] [-v]\n", basename);
+    printf("         url of video server\n");
+    printf("         transport (optional) specifier for media stream protocol\n");
+    printf("           default transport: %s\n", DEFAULT_TRANSPORT);
+    printf("         range (optional) specifier for playing media stream\n");
+    printf("           default range: %s\n", DEFAULT_RANGE);
+    printf("Example: %s rtsp://192.168.0.2/media/video1\n\n", basename);
+}
 
 // main app
 int main(int argc, char * const argv[]) {
-    const char *transport = "RTP/AVP;unicast;client_port=1234-1235";  // UDP		
-//    const char *transport = "RTP/AVP/TCP;unicast;client_port=1234-1235";  // TCP
-    const char *range = "0.000-";
+    const char *transport = DEFAULT_TRANSPORT;
+    const char *range = DEFAULT_RANGE;
+    long verbose = 0;
     int rc = EXIT_SUCCESS;
 
     printf("\nRTSP request %s\n", VERSION_STR);
@@ -168,22 +181,17 @@ int main(int argc, char * const argv[]) {
     printf("    Requires cURL V7.20 or greater\n\n");
 
     // check command line
-    char *basename = NULL;
-    if ((argc != 2) && (argc != 3)) {
-        basename = strrchr(argv[0], '/');
-        if (basename == NULL) {
-            basename = strrchr(argv[0], '\\');
-        }
-        if (basename == NULL) {
-            basename = argv[0];
-        } else {
-            basename++;
-        }
-        printf("Usage:   %s url [transport]\n", basename);
-        printf("         url of video server\n");
-        printf("         transport (optional) specifier for media stream protocol\n");
-        printf("         default transport: %s\n", transport);
-        printf("Example: %s rtsp://192.168.0.2/media/video1\n\n", basename);
+    char *basename = basename = strrchr(argv[0], '/');
+    if (basename == NULL) {
+        basename = strrchr(argv[0], '\\');
+    }
+    if (basename == NULL) {
+        basename = argv[0];
+    } else {
+        basename++;
+    }
+    if (argc <= 1) {
+        print_usage(basename);
         rc = EXIT_FAILURE;
     } else {
         const char *url = argv[1];
@@ -191,58 +199,103 @@ int main(int argc, char * const argv[]) {
         char *sdp_filename = new char[strlen(url) + 32];
         char *control = new char[strlen(url) + 32];
         get_sdp_filename(url, sdp_filename);
-        if (argc == 3) {
-            transport = argv[2];
+        int i = 2;
+        argc--;
+        while (argc > 1) {
+            if (strcmp(argv[i], "-t") == 0) {
+                argc--;
+                i++;
+                if (argc > 1) {
+                    transport = argv[i];
+                    argc--;
+                    i++;
+                }
+                printf("Using transport: %s\n", transport);
+            } else if (strcmp(argv[i], "-r") == 0) {
+                argc--;
+                i++;
+                if (argc > 1) {
+                    range = argv[i];
+                    argc--;
+                    i++;
+                }
+                printf("Using range: %s\n", range);
+            } else if (strcmp(argv[i], "-norange") == 0) {
+                argc--;
+                i++;
+                range = NULL;
+                printf("RTSP play range disabled\n");
+            } else if (strcmp(argv[i], "-v") == 0) {
+                argc--;
+                i++;
+                verbose = 1;
+            } else if (strcmp(argv[i], "-h") == 0) {
+                argc--;
+                i++;
+                print_usage(basename);
+                rc = EXIT_FAILURE;
+                break;
+            } else {
+                printf("Unrecognized option: %s\n\n", argv[i]);
+                argc--;
+                i++;
+                print_usage(basename);
+                rc = EXIT_FAILURE;
+                break;
+            }
         }
 
-        // initialize curl
-        CURLcode res = CURLE_OK;
-        res = curl_global_init(CURL_GLOBAL_ALL);
-        if (res == CURLE_OK) {
-            curl_version_info_data *data = curl_version_info(CURLVERSION_NOW);
-            fprintf(stderr, "    cURL V%s loaded\n", data->version);
+        if (rc == EXIT_SUCCESS) {
 
-            // initialize this curl session
-            CURL *curl = curl_easy_init();
-            if (curl != NULL) {
-                my_curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);
-                my_curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
-                my_curl_easy_setopt(curl, CURLOPT_WRITEHEADER, stdout);
-                my_curl_easy_setopt(curl, CURLOPT_URL, url);
+            // initialize curl
+            CURLcode res = CURLE_OK;
+            res = curl_global_init(CURL_GLOBAL_ALL);
+            if (res == CURLE_OK) {
+                curl_version_info_data *data = curl_version_info(CURLVERSION_NOW);
+                fprintf(stderr, "    cURL V%s loaded\n", data->version);
 
-                // request server options
-                sprintf(uri, "%s", url);
-                rtsp_options(curl, uri);
+                // initialize this curl session
+                CURL *curl = curl_easy_init();
+                if (curl != NULL) {
+                    my_curl_easy_setopt(curl, CURLOPT_VERBOSE, verbose);
+                    my_curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+                    my_curl_easy_setopt(curl, CURLOPT_WRITEHEADER, stdout);
+                    my_curl_easy_setopt(curl, CURLOPT_URL, url);
 
-                // request session description and write response to sdp file
-                rtsp_describe(curl, uri, sdp_filename);
+                    // request server options
+                    sprintf(uri, "%s", url);
+                    rtsp_options(curl, uri);
 
-                // get media control attribute from sdp file
-                get_media_control_attribute(sdp_filename, control);
+                    // request session description and write response to sdp file
+                    rtsp_describe(curl, uri, sdp_filename);
 
-                // setup media stream
-                sprintf(uri, "%s/%s", url, control);
-                rtsp_setup(curl, uri, transport);
+                    // get media control attribute from sdp file
+                    get_media_control_attribute(sdp_filename, control);
 
-                // start playing media stream
-                sprintf(uri, "%s/", url);
-                rtsp_play(curl, uri, range);
-                printf("Playing video, press any key to stop ...");
-                _getch();
-                printf("\n");
+                    // setup media stream
+                    sprintf(uri, "%s/%s", url, control);
+                    rtsp_setup(curl, uri, transport);
 
-                // teardown session
-                rtsp_teardown(curl, uri);
+                    // start playing media stream
+                    sprintf(uri, "%s/", url);
+                    rtsp_play(curl, uri, range);
+                    printf("Playing video, press any key to stop ...");
+                    _getch();
+                    printf("\n");
 
-                // cleanup
-                curl_easy_cleanup(curl);
-                curl = NULL;
+                    // teardown session
+                    rtsp_teardown(curl, uri);
+
+                    // cleanup
+                    curl_easy_cleanup(curl);
+                    curl = NULL;
+                } else {
+                    fprintf(stderr, "curl_easy_init() failed\n");
+                }
+                curl_global_cleanup();
             } else {
-                fprintf(stderr, "curl_easy_init() failed\n");
+                fprintf(stderr, "curl_global_init(%s) failed\n", "CURL_GLOBAL_ALL", res);
             }
-            curl_global_cleanup();
-        } else {
-            fprintf(stderr, "curl_global_init(%s) failed\n", "CURL_GLOBAL_ALL", res);
         }
         delete []control;
         delete []sdp_filename;
