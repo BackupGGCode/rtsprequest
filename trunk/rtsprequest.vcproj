@@ -40,7 +40,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories=".\curl\builds\libcurl-debug-static-sspi\include"
+				AdditionalIncludeDirectories=".\curl\builds\libcurl-debug-static\include"
 				PreprocessorDefinitions="WIN32;_DEBUG;CURL_STATICLIB;_CRT_SECURE_NO_WARNINGS"
 				MinimalRebuild="false"
 				BasicRuntimeChecks="3"
@@ -61,7 +61,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="libcurl_a_debug.lib"
-				AdditionalLibraryDirectories=".\curl\builds\libcurl-debug-static-sspi\lib"
+				AdditionalLibraryDirectories=".\curl\builds\libcurl-debug-static\lib"
 				GenerateDebugInformation="true"
 				RandomizedBaseAddress="1"
 				DataExecutionPrevention="0"
@@ -114,7 +114,7 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalIncludeDirectories=".\curl\builds\libcurl-release-static-sspi\include"
+				AdditionalIncludeDirectories=".\curl\builds\libcurl-release-static\include"
 				PreprocessorDefinitions="WIN32;CURL_STATICLIB;_CRT_SECURE_NO_WARNINGS"
 				RuntimeLibrary="2"
 				WarningLevel="4"
@@ -133,7 +133,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="libcurl_a.lib"
-				AdditionalLibraryDirectories=".\curl\builds\libcurl-release-static-sspi\lib"
+				AdditionalLibraryDirectories=".\curl\builds\libcurl-release-static\lib"
 				GenerateDebugInformation="true"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
