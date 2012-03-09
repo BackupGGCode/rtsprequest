@@ -52,7 +52,7 @@
 
 #include <curl/curl.h>
 
-#define VERSION_STR         "V1.1"
+#define VERSION_STR         "V1.2"
 #define DEFAULT_TRANSPORT   "RTP/AVP;unicast;client_port=1234-1235"
 #define DEFAULT_RANGE       "0.000-"
 
@@ -160,7 +160,8 @@ void get_media_control_attribute(const char *sdp_filename, char *control) {
 }
 
 void print_usage(const char *basename) {
-    printf("Usage:   %s url [-t transport] [-r range] [-norange] [-v]\n", basename);
+    printf("Usage:   %s url [-t transport] [-r range]\n", basename);
+    printf("           [-norange] [-noteardown] [-noninteractive] [-v]\n");
     printf("         url of video server\n");
     printf("         transport (optional) specifier for media stream protocol\n");
     printf("           default transport: %s\n", DEFAULT_TRANSPORT);
@@ -173,6 +174,8 @@ void print_usage(const char *basename) {
 int main(int argc, char * const argv[]) {
     const char *transport = DEFAULT_TRANSPORT;
     const char *range = DEFAULT_RANGE;
+    bool teardown_flag = true;
+    bool interactive_flag = true;
     long verbose = 0;
     int rc = EXIT_SUCCESS;
 
@@ -225,6 +228,14 @@ int main(int argc, char * const argv[]) {
                 i++;
                 range = NULL;
                 printf("RTSP play range disabled\n");
+            } else if (strcmp(argv[i], "-noteardown") == 0) {
+                argc--;
+                i++;
+                teardown_flag = false;
+            } else if (strcmp(argv[i], "-noninteractive") == 0) {
+                argc--;
+                i++;
+                interactive_flag = false;
             } else if (strcmp(argv[i], "-v") == 0) {
                 argc--;
                 i++;
@@ -279,12 +290,18 @@ int main(int argc, char * const argv[]) {
                     // start playing media stream
                     sprintf(uri, "%s/", url);
                     rtsp_play(curl, uri, range);
-                    printf("Playing video, press any key to stop ...");
-                    _getch();
-                    printf("\n");
+                    if (interactive_flag) {
+                        printf("Playing video, press any key to stop ...");
+                        _getch();
+                        printf("\n");
+                    } else {
+                        printf("Playing video\n");
+                    }
 
                     // teardown session
-                    rtsp_teardown(curl, uri);
+                    if (teardown_flag) {
+                        rtsp_teardown(curl, uri);
+                    }
 
                     // cleanup
                     curl_easy_cleanup(curl);
